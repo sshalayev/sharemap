@@ -1,0 +1,665 @@
+<html>
+<head>
+    <link rel="stylesheet" href="style.css" />
+    <script type="application/javascript" src="data.js"></script>
+    <style type="text/css">
+        canvas {
+            border: 1px solid black;
+            z-index: 20;
+        }
+        div { font-family: "icomoon";}
+        .first::before { content: "\e629"; }
+        .sec::before { content: "\e628"; }
+        .thi::before { content: "\e627"; }
+        #canvas-holder {
+            max-height: 300px;
+            max-width: 1000px;
+            overflow: auto;
+            position: relative;
+            float: left;
+        }
+        #node_layer {
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            right: 1px;
+            background-color: rgba(255,255,255,0);
+
+        }
+        .node_div {
+            position: absolute;
+            width: 32px;
+            height: 32px;
+        }
+        .node_div:hover {
+            cursor: hand;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="canvas-holder">
+    <canvas id="sm" width="1000">Some fall back text</canvas>
+    <div id="node_layer"></div>
+</div>
+<div id = "data">&#58919; &#58920; &#58921; </div>
+<div><span class="first">&nbsp;1</span><span class="sec">&nbsp;2</span><span class="thi">&nbsp;3</span></div>
+
+<script>
+    var icons = document.getElementById("data");
+    var node_layer = document.getElementById("node_layer");
+    icons.innerHTML = "&#58919; &#58920; &#58921; " + String.fromCharCode(58919)+ String.fromCharCode(58920)+ String.fromCharCode(58921);
+
+
+    var check = new Path2D("M12.8 371.2c-12.8 12.8-12.8 44.8 0 57.6l102.4 102.4c12.8 12.8 44.8 12.8 57.6 0l166.4-166.4c12.8-12.8 44.8-12.8 57.6 0l454.4 454.4c12.8 12.8 44.8 19.2 57.6 0l102.4-102.4c12.8-12.8 19.2-44.8 0-57.6l-550.4-556.8c-12.8-12.8-44.8-32-70.4-32h-51.2c-25.6 0-51.2 12.8-70.4 32l-256 268.8z");
+    var pen = new Path2D("M1024 711.314l-248.686 248.686-658.286-658.286-117.029-365.714 365.714 117.029 658.286 658.286zM87.771 23.771l80.457 248.686 168.229-168.229-248.686-80.457z");
+
+    var sm_data = data[0];
+    var canvas = document.getElementById("sm");
+    var ctx = canvas.getContext("2d");
+    var teams = [];
+    var share_map = [];
+    var current = {
+        column: -1,
+        team: 0,
+        lane: 0
+        };
+    var color = {
+        nodetop: "#FFFFFF",
+        nodebot: "#47cc9e",
+        nodeact: "#ffac26",
+        nodecurr: "#fc4051",
+        dlink: "#b6bbbf",
+        ulink: "#47cc9e",
+        dlink_p: "rgba(182, 187, 191, 0.5)",
+        ulink_p: "rgba(71, 204, 58, 0.5)",
+        inactive: "#d5d9dc",
+        lane_p: "#4c5b71",
+        lane_cur: "#0f1b26",
+        lane_ch: "#dfe3e6",
+        txt: "#000000"
+        };
+    var col_width = 80;
+    var lanes = [
+        {
+            role: "parent",
+            color: color.lane_p,
+            height: 44
+        },
+        {
+            role: "current",
+            color: color.lane_cur,
+            height: 80
+        },
+        {
+            role: "child",
+            color: color.lane_ch,
+            height: 50
+        }
+    ];
+    //Patterns from requirements to match for version increase
+    var ver_clauses = [
+        "C:undefined",
+        "Cto:undefined",
+        "AMDRto:E",
+        "AMDRto:MDRfrom",
+        "AMDRto:Cfrom",
+        "AMDRto:AMDRfrom",
+        "AMDRto:AMURto",
+        "AMDRto:MURfrom",
+        "AMDRto:AMURfrom",
+        "E:AMDRto",
+        "E:Cto",
+        "E:Cfrom",
+        "E:MDRfrom",
+        "E:AMDRfrom",
+        "E:AMURfrom",
+        "E:MURfrom",
+        "AMURto:AMDRto",
+        "AMURto:MDRfrom",
+        "AMURto:AMDRfrom",
+        "AMURto:MURfrom",
+        "AMURto:AMURfrom",
+        "AMURto:Cfrom"
+        ];
+    var lane_pos = 0;
+    var can_height = 0;
+
+    function getRoleProp(arr,k,prop) {
+        for (var i in arr) {
+            if (arr[i].role == k) {
+                return arr[i][prop];
+            }
+        }
+        return "Unknown property";
+    }
+
+    function teamToLane(team_id) {
+        for (var i in teams) {
+            if (team_id == teams[i].id) {
+                return parseInt(i);
+            }
+        }
+        return "No such id";
+    }
+
+    function getTeamState(lane){
+        var res = []
+        share_map.map(function(v){
+           if (v.to == lane || v.from == lane){
+               res.push(v.state);
+           }
+            return v;
+        });
+        var res_str = res.pop();
+        if (res_str == "normal" || res_str == "connected"){
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    function laneToY(lane) {
+        var ypos = 0;
+
+        for (var i = 0; i < lane; i++) {
+            ypos += teams[i].height;
+        }
+
+        return ypos + teams[lane].height/2
+    }
+
+    function colToX(col) {
+        return canvas.width - (col*col_width) - (col_width/2);
+    }
+
+    function drawNode(x, y, style, content) {
+
+        content = content || "";
+
+        switch(style) {
+
+            case "ignored":
+                ctx.fillStyle = color.dlink;
+                ctx.beginPath();
+                ctx.arc(x,y,10,0,Math.PI*2);
+                ctx.fill();
+                break;
+
+            case "pending":
+                ctx.save();
+                ctx.shadowOffsetY = 1;
+                ctx.shadowBlur = 2;
+                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                ctx.fillStyle = color.nodeact;
+                ctx.beginPath();
+                ctx.arc(x,y,16,0,Math.PI*2);
+                ctx.fill();
+
+                ctx.fillStyle = color.nodetop;
+                ctx.beginPath();
+                ctx.arc(x,y,10,0,Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+                break;
+
+            case "opened":
+                ctx.save();
+                ctx.shadowOffsetY = 1;
+                ctx.shadowBlur = 2;
+                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                ctx.fillStyle = color.nodetop;
+                ctx.beginPath();
+                ctx.arc(x,y,16,0,Math.PI*2);
+                ctx.fill();
+
+                ctx.fillStyle = color.nodeact;
+                ctx.setTransform(0.015,0,0,-0.015,x-7,y+7);
+                ctx.fill(pen);
+                ctx.restore();
+                break;
+
+            case "connected":
+                ctx.save();
+                ctx.shadowOffsetY = 1;
+                ctx.shadowBlur = 2;
+                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                ctx.fillStyle = color.nodetop;
+                ctx.beginPath();
+                ctx.arc(x,y,16,0,Math.PI*2);
+                ctx.fill();
+
+                ctx.fillStyle = color.nodebot;
+                ctx.setTransform(0.015,0,0,-0.015,x-7,y+7);
+                ctx.fill(check);
+                ctx.restore();
+                break;
+
+            default:
+                ctx.save();
+                ctx.shadowOffsetY = 1;
+                ctx.shadowBlur = 2;
+                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                ctx.fillStyle = color.nodebot;
+                ctx.beginPath();
+                ctx.arc(x,y,16,0,Math.PI*2);
+                ctx.fill();
+
+                ctx.fillStyle = color.nodetop;
+                ctx.beginPath();
+                ctx.arc(x,y,10,0,Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+                ctx.font = "12px Arial";
+                ctx.fillStyle = "black";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+
+                ctx.fillText(content, x, y);
+                break;
+        }
+    }
+
+    function connectNodes(from_lane, from_col, to_lane, to_col, dir) {
+        var fx, fy, tx, ty;
+        var radius = 10;
+
+        fy = laneToY(from_lane);
+        ty = laneToY(to_lane);
+
+        if (dir == "dfm") {
+            fx = colToX(from_col);
+            tx = fx - col_width/2;
+
+            ctx.strokeStyle = color.dlink;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(fx, ty-radius);
+            ctx.quadraticCurveTo(fx, ty, fx-radius, ty);
+            ctx.lineTo(tx,ty);
+            ctx.stroke();
+        }
+        else if (dir == "utm") {
+            tx = colToX(to_col);
+            fx = tx + col_width/2;
+
+            ctx.strokeStyle = color.ulink;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(tx+radius, fy);
+            ctx.quadraticCurveTo(tx, fy, tx, fy-radius);
+            ctx.lineTo(tx,ty);
+            ctx.stroke();
+        }
+        else if (dir == "dtm") {
+            tx = colToX(to_col);
+            fx = tx + col_width/2 - 10;
+
+            ctx.strokeStyle = color.dlink_p;
+            ctx.fillStyle = color.dlink_p;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(fx, ty-radius);
+            ctx.quadraticCurveTo(fx, ty, fx-radius, ty);
+            ctx.lineTo(tx,ty);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(fx,fy-6,6,0,Math.PI*2);
+            ctx.fill();
+        }
+        else if (dir == "ufm") {
+            fx = colToX(from_col);
+            tx = fx - col_width/2 + 10;
+
+            ctx.strokeStyle = color.ulink_p;
+            ctx.fillStyle = color.ulink_p;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(tx+radius, fy);
+            ctx.quadraticCurveTo(tx, fy, tx, fy-radius);
+            ctx.lineTo(tx,ty);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(tx,ty-6,6,0,Math.PI*2);
+            ctx.fill();
+        }
+    }
+
+    function drawConn(fx,fy,tx,ty) {
+
+        ctx.strokeStyle = color.ulink;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+    }
+    //MAIN PART STARTS HERE
+    // teams data refactoring: adding role, height and color to draw lanes
+    for (var i in sm_data.teams) {
+        var crole = "";
+        if (sm_data.teams[i].is_child) {
+            crole = "child";
+        }
+        else if (sm_data.teams[i].is_current) {
+            crole = "current";
+            current.team = sm_data.teams[i].id;
+        }
+        else {
+            crole = "parent";
+        }
+        var team = {
+            id: sm_data.teams[i].id,
+            role: crole,
+            color: getRoleProp(lanes,crole,"color"),
+            height: getRoleProp(lanes,crole,"height")
+        };
+        teams.push(team);
+        can_height += team.height;
+    }
+    canvas.height = can_height;
+    node_layer.style.height = can_height;
+    current.lane = teamToLane(current.team);
+
+    // create array of acronym hashes to match with version clauses
+    var acro_actions = [];
+    for (var i in sm_data.actions) {
+        var suf = "";
+        if (sm_data.actions[i].from_team_id != sm_data.actions[i].to_team_id) {
+            if (sm_data.actions[i].from_team_id == current.team) {
+                suf = "from";
+            }
+            else if (sm_data.actions[i].to_team_id == current.team) {
+                suf = "to";
+            }
+        }
+        acro_actions.push(sm_data.actions[i].action.replace(/[a-z]/g,"") + suf);
+    }
+    //join pairs of action acronyms to match with version clauses
+    acro_actions = acro_actions.map(function(v,i,a){ return v+":"+a[i+1]; });
+
+    // create share_map array ready for drawing sharemap (all actions)
+    // create versions array with actions that increase version number
+    var versions = [];
+    for (var i = sm_data.actions.length - 1; i >= 0; i--) {
+        var state = "normal";
+        var act_date = new Date(sm_data.actions[i].created_at);
+        if (ver_clauses.indexOf(acro_actions[i]) > -1) {
+            current.column++;
+            versions.push({
+                action_id: sm_data.actions[i].id,
+                date: act_date,
+                version: current.column + 1
+            });
+        }
+        //action produced by current team
+        if(sm_data.actions[i].from_team_id == current.team){
+            switch (sm_data.actions[i].action){
+                case "MergeDownRequest":
+                        state = 'pending';
+                    sm_data.actions.map(function(v,j){
+                        if(j < i && (v.action == "MergeDownRequest" || v.action == "AcceptedMergeDownRequest") && v.to_team_id == sm_data.actions[i].to_team_id){
+                            state = 'ignored';
+                        }
+                        return v;
+                    });
+                    break;
+                case "AcceptedMergeDownRequest":
+                        state = 'opened';
+                    sm_data.actions.map(function(v,j){
+                        if(j < i && (v.action == "MergeUpRequest" || v.action == "AcceptedMergeUpRequest") && v.from_team_id == sm_data.actions[i].to_team_id){
+                            state = 'connected_to_' + j;
+                        }
+                        if (j < i && (v.action == "MergeDownRequest" || v.action == "AcceptedMergeDownRequest") && v.to_team_id == sm_data.actions[i].to_team_id){
+                            state = 'ignored';
+                        }
+                        return v;
+                    });
+                    break;
+                case "MergeUpRequest":
+                case "AcceptedMergeUpRequest":
+                    state = 'parent';
+                    break;
+                case "Created":
+                    if (sm_data.actions[i].to_team_id != current.team){
+                        state = 'opened';
+                        sm_data.actions.map(function(v,j){
+                            if(j < i && (v.action == "MergeUpRequest" || v.action == "AcceptedMergeUpRequest") && v.from_team_id == sm_data.actions[i].to_team_id){
+                                state = 'connected_to_' + j;
+                            }
+                            if (j < i && (v.action == "MergeDownRequest" || v.action == "AcceptedMergeDownRequest") && v.to_team_id == sm_data.actions[i].to_team_id){
+                                state = 'ignored';
+                            }
+                            return v;
+                        });
+                    }
+                    break;
+                default:
+                    state = 'normal';
+            }
+        }
+        //action produced either by parent or child of current team
+        else {
+            switch (sm_data.actions[i].action){
+                case 'MergeUpRequest':
+                    state = 'pending';
+                    sm_data.actions.map(function(v,j){
+                        if(j < i && (v.action == "MergeUpRequest" || v.action == "AcceptedMergeUpRequest") && v.from_team_id == sm_data.actions[i].from_team_id){
+                            state = 'ignored';
+                        }
+                        return v;
+                    });
+                    break;
+                case "AcceptedMergeDownRequest":
+                    state = 'parent';
+                    break;
+                default:
+                    state = 'normal';
+            }
+        }
+
+        var sm_action = {
+            id: sm_data.actions[i].id,
+            action: sm_data.actions[i].action,
+            to: teamToLane(sm_data.actions[i].to_team_id),
+            from: teamToLane(sm_data.actions[i].from_team_id),
+            col: current.column,
+            state: state
+            };
+        share_map.push(sm_action);
+    }
+
+    canvas.width = versions.length * col_width + 300;
+    node_layer.style.width = canvas.width;
+    console.log(share_map);
+    console.log(versions);
+
+    //draw the lanes
+    for (var i in teams) {
+        ctx.save();
+        ctx.shadowOffsetY = 1;
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+        ctx.fillStyle = teams[i].color;
+        ctx.fillRect(0, lane_pos, canvas.width, teams[i].height);
+        ctx.restore();
+        lane_pos += teams[i].height;
+    }
+
+    //draw columns with dates
+    for (var i in versions){
+        var d = versions[i].date.getMonth().toString() + "/" + versions[i].date.getDate().toString() + "/" + versions[i].date.getFullYear().toString();
+        i = parseInt(i);
+        ctx.save();
+        ctx.strokeStyle = color.lane_p;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width - ((i + 1) * col_width), laneToY(current.lane) - (lanes[1].height/2));
+        ctx.lineTo(canvas.width - ((i + 1) * col_width), laneToY(current.lane) + (lanes[1].height/2));
+        ctx.stroke();
+
+        ctx.fillStyle = color.nodetop;
+        ctx.font = "11px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        ctx.beginPath();
+        ctx.fillText(d, canvas.width - ((i+1) * col_width) + (col_width/2), laneToY(current.lane) - (lanes[1].height/4) - 6);
+        ctx.restore();
+    }
+
+    //draw user column
+    ctx.save();
+    ctx.strokeStyle = color.lane_p;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(300,laneToY(current.lane) - (lanes[1].height/2));
+    ctx.lineTo(300, canvas.height);
+    ctx.stroke();
+    ctx.restore();
+
+    var avatars = [];
+    for(var i in sm_data.teams){
+        var y = laneToY(parseInt(i));
+
+        (function(_i, _y){
+            var ypos = _y - 18;
+            avatars[_i] = new Image();
+            avatars[_i].src = sm_data.teams[_i].avatar;
+            avatars[_i].onload = function() {
+                ctx.drawImage(avatars[_i], 32, ypos);
+            };
+        })(i, y);
+
+
+        if (teams[i].role == "child"){
+            ctx.save();
+            ctx.fillStyle = getTeamState(parseInt(i)) ? color.nodebot : color.nodeact;
+            ctx.beginPath();
+            ctx.arc(16, y, 6, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+        }
+        ctx.save();
+        switch(teams[i].role){
+            case "parent":
+                ctx.fillStyle = color.nodetop;
+                ctx.font = "12px Arial";
+                break;
+            case "current":
+                ctx.fillStyle = color.nodetop;
+                ctx.font = "16px Arial";
+                break;
+            case "child":
+                ctx.fillStyle = color.txt;
+                ctx.font = "12px Arial";
+                break;
+            default:
+                ctx.fillStyle = color.txt;
+                ctx.font = "12px Arial";
+        }
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.beginPath();
+        ctx.fillText(sm_data.teams[i].name, 80, y);
+        ctx.restore();
+    }
+
+
+    //draw connections between nodes
+    var nodes = [];
+    for (var i in share_map) {
+
+        if (share_map[i].state.search(/connected.+/) > -1){
+            var target_num = share_map.length - 1 - parseInt(share_map[i].state.replace(/.+_(\d+)/,"$1"));
+
+            drawConn(colToX(share_map[i].col) - (col_width / 2), laneToY(share_map[i].to), colToX(share_map[target_num].col) + (col_width / 2), laneToY(share_map[i].to));
+            share_map[i].state = 'connected';
+        }
+
+        if (share_map[i].from == current.lane) {
+            if (share_map[i].to == current.lane - 1) {
+                connectNodes(share_map[i].from, share_map[i].col,share_map[i].to, share_map[i].col, "ufm");
+                nodes.push({action_id: share_map[i].id, col: share_map[i].col, lane: share_map[i].to, state: share_map[i].state});
+            }
+            else if (share_map[i].to > current.lane) {
+                connectNodes(share_map[i].from, share_map[i].col,share_map[i].to, share_map[i].col, "dfm");
+                nodes.push({action_id: share_map[i].id, col: share_map[i].col, lane: share_map[i].to, state: share_map[i].state});
+            }
+        }
+        else if (share_map[i].to == current.lane) {
+            if (share_map[i].from == current.lane - 1) {
+                connectNodes(share_map[i].from, share_map[i].col,share_map[i].to, share_map[i].col, "dtm");
+                nodes.push({action_id: share_map[i].id, col: share_map[i].col, lane: share_map[i].to, state: share_map[i].state});
+            }
+            else if (share_map[i].from > current.lane) {
+                connectNodes(share_map[i].from, share_map[i].col,share_map[i].to, share_map[i].col, "utm");
+                nodes.push({action_id: share_map[i].id, col: share_map[i].col, lane: share_map[i].to, state: share_map[i].state});
+            }
+        }
+    }
+
+    console.log(nodes);
+
+    //draw connections along current lane
+    drawConn(colToX(0), laneToY(current.lane),colToX(versions.length - 1),laneToY(current.lane));
+
+    // draw version nodes and main chain on current lane
+    //create divs on node_layer to make it interactive
+    for (var i = 0; i <= versions.length - 1; i++){
+        drawNode(colToX(i),laneToY(current.lane),"default",i+1);
+        var node_div = document.createElement("div");
+        node_div.id = "ver_" + i;
+        node_layer.appendChild(node_div);
+        node_div.className = "node_div";
+        node_div.style.top = laneToY(current.lane) - 16;
+        node_div.style.left = colToX(i) - 16;
+        node_div.setAttribute("action_id",versions[i].action_id);
+        node_div.onclick = function(){
+            var content;
+            var _this = this;
+            sm_data.actions.map(function(v){
+               if (v.id == _this.getAttribute("action_id")){
+                   content = v;
+               }
+                return v;
+            });
+            alert("Need some good design here \n" + JSON.stringify(content));
+        };
+    }
+    //draw childs' nodes
+    //create divs on node_layer to make it interactive
+    for (var i in nodes){
+        if (nodes[i].state != "normal" && nodes[i].state != "parent"){
+            drawNode(colToX(nodes[i].col)-(col_width/2),laneToY(nodes[i].lane), nodes[i].state);
+            var node_div = document.createElement("div");
+            node_div.id = "act_" + i;
+            node_layer.appendChild(node_div);
+            node_div.className = "node_div";
+            node_div.style.top = laneToY(nodes[i].lane) - 16;
+            node_div.style.left = colToX(nodes[i].col)-(col_width/2) - 16;
+            node_div.setAttribute("action_id",nodes[i].action_id);
+            node_div.onclick = function(){
+                var content;
+                var _this = this;
+                sm_data.actions.map(function(v){
+                    if (v.id == _this.getAttribute("action_id")){
+                        content = v;
+                    }
+                    return v;
+                });
+                alert("Need some good design here \n" + JSON.stringify(content));
+            };
+
+        }
+    }
+
+</script>
+</body>
+</html>
