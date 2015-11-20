@@ -13,22 +13,32 @@
             font-size: 10pt;
             margin-bottom: 5px;
         }
+        h2 {
+            font-size: 12pt;
+            font-weight: bold;
+        }
         .wrong {
             color: red;
         }
         .right {
             float: right;
-            width: 45%;
+            width: 48%;
+            max-height: 650px;
+            overflow: auto;
             padding: 5px;
-            border-left: 1px solid #ccc;
+            border: 0px solid #ccc;
+            border-radius: 5px;
             background-color: lightcyan;
+            box-shadow: 2px 2px 3px 0px rgba(0,0,0,0.25);
         }
         .left {
             float: left;
-            width: 45%;
+            width: 48%;
             padding: 5px;
-            border-right: 1px solid #ccc;
+            border: 0px solid #ccc;
+            border-radius: 5px;
             background-color: beige;
+            box-shadow: 2px 2px 3px 0px rgba(0,0,0,0.25);
         }
         #canvas_holder {
             max-height: 300px;
@@ -55,7 +65,7 @@
         .node_div:hover {
             cursor: hand;
         }
-        .sample {
+        #sample {
             word-wrap: break-word;
             white-space: pre-wrap;
         }
@@ -64,6 +74,9 @@
             border: 1px solid #ccc;
             background-color: antiquewhite;
         }
+        #doc_url, #sm_data {
+            width: 100%;
+        }
 
 
     </style>
@@ -71,17 +84,26 @@
 <body>
 <div class="left">
     <div>
-        <p>Copy and paste URL of the document here</p>
-        <input type="text" id="doc_url" width="300">
+        <h2>How to use it</h2>
+        <ol>
+            <li>Open document in editor</li>
+            <li>Copy actual link and paste it to the field below</li>
+            <li>Click on generated link (opens in new tab)</li>
+            <li>Copy received JSON for sharemap and paste it to text fild</li>
+            <li>Press 'Draw' button to get sharemap rendered</li>
+        </ol>
+        <p>Alternatively you can use sample from the right block</p>
+        <input type="text" id="doc_url">
     </div>
     <div id="link_div"><a id="link" target="_blank"></a></div>
     <div id="sm_div">
-        <textarea id="sm_data" cols="60" rows="30"></textarea>
-        <input type="submit" onclick="drawShareMap()">
+        <textarea id="sm_data" rows="25"></textarea>
+        <p align="right"><input type="submit" onclick="drawShareMap()" value="Draw"></p>
     </div>
 </div>
 <div class="right">
-    <p class="sample">Example to be here</p>
+    <h2>Sample data</h2>
+    <p id="sample"></p>
 </div>
 <div id="canvas_holder">
     <canvas id="sm">Some fall back text</canvas>
@@ -96,11 +118,15 @@
             res = str.replace(/^(.+)edit-file\/(\d+)\/\D+\/(\d+)\/?$/, function(match,p1,p2,p3){
                 return p1 + "api/v1/project/" + p2 + "/team/" + p3 + "/share_/";
             });
-            $( "#link").html(res).attr("href", res).toggleClass("wrong",false);
+            $( "#link" ).html(res).attr("href", res).toggleClass("wrong",false);
         } else {
-            $( "#link").html("Enter valid document URL").toggleClass("wrong",true);
+            $( "#link" ).html("Enter valid document URL").toggleClass("wrong",true);
         }
     });
+    $( "#doc_url" ).keypress(function(){
+        $( "#doc_url" ).change();
+    });
+    $("#sample").text(JSON.stringify(sample_data, null, 4));
 </script>
 </body>
 </html>

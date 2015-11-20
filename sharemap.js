@@ -5,8 +5,8 @@ function drawShareMap() {
 
     var share_map = JSON.parse($("#sm_data").val());
     var node_layer = document.getElementById("node_layer");
-    console.log(share_map);
 
+    //pen and check icons from SVG
     var check = new Path2D("M12.8 371.2c-12.8 12.8-12.8 44.8 0 57.6l102.4 102.4c12.8 12.8 44.8 12.8 57.6 0l166.4-166.4c12.8-12.8 44.8-12.8 57.6 0l454.4 454.4c12.8 12.8 44.8 19.2 57.6 0l102.4-102.4c12.8-12.8 19.2-44.8 0-57.6l-550.4-556.8c-12.8-12.8-44.8-32-70.4-32h-51.2c-25.6 0-51.2 12.8-70.4 32l-256 268.8z");
     var pen = new Path2D("M1024 711.314l-248.686 248.686-658.286-658.286-117.029-365.714 365.714 117.029 658.286 658.286zM87.771 23.771l80.457 248.686 168.229-168.229-248.686-80.457z");
 
@@ -44,6 +44,8 @@ function drawShareMap() {
         }
     };
 
+    //return team state according to the last event state
+    //true - current, no activities pending; false - in progress
     function getTeamState(team){
         var res = [];
         share_map.actions.map(function(v){
@@ -61,6 +63,7 @@ function drawShareMap() {
         }
     }
 
+    //transform team and version to actual X and Y on sharemap
     function teamToY(team) {
         var ypos = 0;
         for (var i = 0; i < share_map.teams.length; i++) {
@@ -82,10 +85,12 @@ function drawShareMap() {
         switch(style) {
 
             case "ignored":
+                ctx.restore();
                 ctx.fillStyle = color.dlink;
                 ctx.beginPath();
                 ctx.arc(x,y,10,0,Math.PI*2);
                 ctx.fill();
+                ctx.restore();
                 break;
 
             case "pending":
@@ -169,10 +174,11 @@ function drawShareMap() {
         fy = teamToY(from_team);
         ty = teamToY(to_team);
 
-        if (dir == "dfm") {
+        if (dir == "down_from_me") {
             fx = versionToX(version);
             tx = fx - col_width/2;
 
+            ctx.save();
             ctx.strokeStyle = color.dlink;
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -181,11 +187,13 @@ function drawShareMap() {
             ctx.quadraticCurveTo(fx, ty, fx-radius, ty);
             ctx.lineTo(tx,ty);
             ctx.stroke();
+            ctx.restore();
         }
-        else if (dir == "utm") {
+        else if (dir == "up_to_me") {
             tx = versionToX(version);
             fx = tx + col_width/2;
 
+            ctx.save();
             ctx.strokeStyle = color.ulink;
             ctx.lineWidth = 4;
             ctx.beginPath();
@@ -194,11 +202,33 @@ function drawShareMap() {
             ctx.quadraticCurveTo(tx, fy, tx, fy-radius);
             ctx.lineTo(tx,ty);
             ctx.stroke();
+            ctx.restore();
         }
-        else if (dir == "dtm") {
+        else if (dir == "up_to_me_pending"){
+            fx = versionToX(version) - col_width/2;
+            tx = versionToX(version + 1);
+            ty = fy - (lanes.child.height/4);
+
+            ctx.save();
+            ctx.strokeStyle = color.dlink;
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(tx+radius, fy);
+            ctx.quadraticCurveTo(tx, fy, tx, fy-radius);
+            ctx.lineTo(tx,ty);
+            ctx.stroke();
+            ctx.fillStyle = color.nodeact;
+            ctx.beginPath();
+            ctx.arc(tx,ty,6,0,Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+        }
+        else if (dir == "down_to_me") {
             tx = versionToX(version);
             fx = tx + col_width/2 - 10;
 
+            ctx.save();
             ctx.strokeStyle = color.dlink_p;
             ctx.fillStyle = color.dlink_p;
             ctx.lineWidth = 4;
@@ -211,11 +241,13 @@ function drawShareMap() {
             ctx.beginPath();
             ctx.arc(fx,fy-6,6,0,Math.PI*2);
             ctx.fill();
+            ctx.restore();
         }
-        else if (dir == "ufm") {
+        else if (dir == "up_from_me") {
             fx = versionToX(version);
             tx = fx - col_width/2 + 10;
 
+            ctx.save();
             ctx.strokeStyle = color.ulink_p;
             ctx.fillStyle = color.ulink_p;
             ctx.lineWidth = 4;
@@ -228,12 +260,14 @@ function drawShareMap() {
             ctx.beginPath();
             ctx.arc(tx,ty-6,6,0,Math.PI*2);
             ctx.fill();
+            ctx.restore();
         }
     }
 
-    function drawConn(fx,fy,tx,ty) {
+    //draw straight line connection
+    function drawConn(fx,fy,tx,ty,color) {
 
-        ctx.strokeStyle = color.ulink;
+        ctx.strokeStyle = color;
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(fx, fy);
@@ -242,13 +276,13 @@ function drawShareMap() {
     }
     //MAIN PART STARTS HERE
 
+    //define current team
     var current_team = share_map.teams.filter(function(val){
         return val.role == "current";
     }).pop();
-     console.log(current_team.id);
 
+    //calculate and set canvas and node_layer dimensions
     var can_height = 0;
-
     for (var i = 0; i < share_map.teams.length; i++) {
         can_height += lanes[share_map.teams[i].role].height;
     }
@@ -364,48 +398,60 @@ function drawShareMap() {
 
         if (action.state.search(/connected.+/) > -1){
             var target_num = share_map.actions.length - 1 - parseInt(action.state.replace(/.+_(\d+)/,"$1"));
+            var con_color = color.ulink;
 
-            drawConn(versionToX(action.version) - (col_width / 2), teamToY(action.to), versionToX(share_map.actions[target_num].version) + (col_width / 2), teamToY(action.to));
-            action.state = 'connected';
-            console.log('connected');
+            if (share_map.actions[target_num].state == "pending") {
+                con_color = color.dlink;
+                action.state = "opened";
+            } else {
+                con_color = color.ulink;
+                action.state = "connected";
+            }
+            if(share_map.actions[target_num].version > action.version){
+                drawConn(versionToX(action.version) - (col_width / 2), teamToY(action.to), versionToX(share_map.actions[target_num].version) + (col_width / 2), teamToY(action.to), con_color);
+                action.state = 'connected';
+                console.log(action.version + ": " + action.version + " to " + share_map.actions[target_num].version);
+            }
         }
 
         if (action.from == current_team.id) {
-            console.log('from me');
             if (action.to < current_team.id) {
-                connectNodes(action.from, action.to, action.version, "ufm");
+                connectNodes(action.from, action.to, action.version, "up_from_me");
                 nodes.push({action_id: action.id,
                             version: action.version,
                             team_to: action.to,
                             state: action.state});
-                console.log('ufm');
+                console.log(action.version + ": " + "up_from_me");
             }
             else if (action.to > current_team.id) {
-                connectNodes(action.from, action.to, action.version, "dfm");
+                connectNodes(action.from, action.to, action.version, "down_from_me");
                 nodes.push({action_id: action.id,
                             version: action.version,
                             team_to: action.to,
                             state: action.state});
-                console.log('dfm');
+                console.log(action.version + ": " + "down_from_me");
             }
         }
         else if (action.to == current_team.id) {
-            console.log('to me');
             if (action.from < current_team.id) {
-                connectNodes(action.from, action.to, action.version, "dtm");
+                connectNodes(action.from, action.to, action.version, "down_to_me");
                 nodes.push({action_id: action.id,
                             version: action.version,
                             team_to: action.to,
                             state: action.state});
-                console.log('dtm');
+                console.log(action.version + ": " + "down_to_me");
             }
             else if (action.from > current_team.id) {
-                connectNodes(action.from, action.to, action.version, "utm");
-                nodes.push({action_id: action.id,
-                            version: action.version,
-                            team_to: action.to,
-                            state: action.state});
-                console.log('utm');
+                if (action.state == "pending"){
+                    connectNodes(action.from, action.to, action.version, "up_to_me_pending");
+                } else {
+                    connectNodes(action.from, action.to, action.version, "up_to_me");
+                    nodes.push({action_id: action.id,
+                        version: action.version,
+                        team_to: action.to,
+                        state: action.state});
+                    console.log(action.version + ": " + "up_to_me");
+                }
             }
         }
     }
@@ -413,7 +459,7 @@ function drawShareMap() {
     console.log(nodes);
 
     //draw connections along current lane
-    drawConn(versionToX(1), teamToY(current_team.id),versionToX(share_map.versions.length),teamToY(current_team.id));
+    drawConn(versionToX(1), teamToY(current_team.id),versionToX(share_map.versions.length),teamToY(current_team.id), color.ulink);
 
     // draw version nodes and main chain on current lane
     //create divs on node_layer to make it interactive
@@ -435,7 +481,7 @@ function drawShareMap() {
                }
                 return v;
             });
-            alert("Need some good design here \n" + JSON.stringify(content));
+            alert("Need some good design here \n" + JSON.stringify(content,null,4));
         };
     }
     //draw childs' nodes
@@ -459,7 +505,7 @@ function drawShareMap() {
                     }
                     return v;
                 });
-                alert("Need some good design here \n" + JSON.stringify(content));
+                alert("Need some good design here \n" + JSON.stringify(content,null,4));
             };
 
         }
