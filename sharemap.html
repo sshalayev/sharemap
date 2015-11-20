@@ -103,6 +103,7 @@
 </div>
 <div class="right">
     <h2>Sample data</h2>
+    <input type="submit" value="Copy to left" id="copy">
     <p id="sample"></p>
 </div>
 <div id="canvas_holder">
@@ -127,6 +128,9 @@
         $( "#doc_url" ).change();
     });
     $("#sample").text(JSON.stringify(sample_data, null, 4));
+    $("#copy").click(function(){
+        $("#sm_data").val(JSON.stringify(sample_data, null, 4));
+    })
 </script>
 </body>
 </html>

@@ -85,7 +85,7 @@ function drawShareMap() {
         switch(style) {
 
             case "ignored":
-                ctx.restore();
+                ctx.save();
                 ctx.fillStyle = color.dlink;
                 ctx.beginPath();
                 ctx.arc(x,y,10,0,Math.PI*2);
@@ -298,9 +298,24 @@ function drawShareMap() {
     var lane_pos = 0;
     for (var i = 0; i < share_map.teams.length; i++) {
         ctx.save();
-        ctx.shadowOffsetY = 1;
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+
+        switch (share_map.teams[i].role){
+            case "parent":
+                break;
+            case "current":
+                ctx.shadowOffsetY = -2;
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                break;
+            case "child":
+                ctx.shadowOffsetY = -1;
+                ctx.shadowBlur = 2;
+                ctx.shadowColor = "rgba(255, 255, 255, 0.7)";
+                break;
+            default:
+                break;
+        }
+
         ctx.fillStyle = lanes[share_map.teams[i].role].color;
         ctx.fillRect(0, lane_pos, canvas.width, lanes[share_map.teams[i].role].height);
         ctx.restore();
@@ -444,6 +459,7 @@ function drawShareMap() {
             else if (action.from > current_team.id) {
                 if (action.state == "pending"){
                     connectNodes(action.from, action.to, action.version, "up_to_me_pending");
+                    console.log(action.version + ": " + "up_to_me_pending");
                 } else {
                     connectNodes(action.from, action.to, action.version, "up_to_me");
                     nodes.push({action_id: action.id,
