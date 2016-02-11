@@ -142,15 +142,35 @@ function drawShareMap() {
                 ctx.restore();
                 break;
 
-            default:
-                ctx.save();
-                ctx.shadowOffsetY = 1;
-                ctx.shadowBlur = 2;
-                ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-                ctx.fillStyle = color.nodebot;
-                ctx.beginPath();
-                ctx.arc(x,y,16,0,Math.PI*2);
-                ctx.fill();
+                case "current":
+                    ctx.save();
+                    ctx.shadowOffsetY = 1;
+                    ctx.shadowBlur = 2;
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                    ctx.fillStyle = color.nodecurr;
+                    ctx.beginPath();
+                    ctx.arc(x,y,16,0,Math.PI*2);
+                    ctx.fill();
+                    ctx.fillStyle = color.nodetop;
+                    ctx.beginPath();
+                    ctx.arc(x,y,14,0,Math.PI*2);
+                    ctx.fill();
+
+                    ctx.fillStyle = color.nodecurr;
+                    ctx.setTransform(0.015,0,0,-0.015,x-7,y+7);
+                    ctx.fill(pen);
+                    ctx.restore();
+                    break;
+
+                default:
+                    ctx.save();
+                    ctx.shadowOffsetY = 1;
+                    ctx.shadowBlur = 2;
+                    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+                    ctx.fillStyle = color.nodebot;
+                    ctx.beginPath();
+                    ctx.arc(x,y,16,0,Math.PI*2);
+                    ctx.fill();
 
                 ctx.fillStyle = color.nodetop;
                 ctx.beginPath();
@@ -228,24 +248,59 @@ function drawShareMap() {
             tx = versionToX(version);
             fx = tx + col_width/2 - 10;
 
-            ctx.save();
-            ctx.strokeStyle = color.dlink_p;
-            ctx.fillStyle = color.dlink_p;
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(fx, fy);
-            ctx.lineTo(fx, ty-radius);
-            ctx.quadraticCurveTo(fx, ty, fx-radius, ty);
-            ctx.lineTo(tx,ty);
-            ctx.stroke();
-            ctx.beginPath();
-            ctx.arc(fx,fy-6,6,0,Math.PI*2);
-            ctx.fill();
-            ctx.restore();
-        }
-        else if (dir == "up_from_me") {
-            fx = versionToX(version);
-            tx = fx - col_width/2 + 10;
+                ctx.save();
+                ctx.strokeStyle = color.dlink_p;
+                ctx.fillStyle = color.dlink_p;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(fx, fy);
+                ctx.lineTo(fx, ty-radius);
+                ctx.quadraticCurveTo(fx, ty, fx-radius, ty);
+                ctx.lineTo(tx,ty);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(fx,fy-6,6,0,Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+            }
+            else if (dir == "down_to_me_pending") {
+                tx = versionToX(version);
+                fx = tx + col_width/2 - 10;
+
+                ctx.save();
+                ctx.strokeStyle = color.dlink_p;
+                ctx.fillStyle = color.dlink_p;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(fx, fy);
+                ctx.lineTo(fx, fy+lanes.parent.height);
+                ctx.stroke();
+                ctx.strokeStyle = color.nodeact;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(fx-5, fy+lanes.parent.height-5);
+                ctx.lineTo(fx, fy+lanes.parent.height);
+                ctx.lineTo(fx+5, fy+lanes.parent.height-5);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(fx,fy-6,6,0,Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+            }
+            else if (dir == "down_to_me_ignored") {
+                tx = versionToX(version);
+                fx = tx + col_width/2 - 10;
+
+                ctx.save();
+                ctx.fillStyle = color.nodecurr;
+                ctx.beginPath();
+                ctx.arc(fx,fy-6,6,0,Math.PI*2);
+                ctx.fill();
+                ctx.restore();
+            }
+            else if (dir == "up_from_me") {
+                fx = versionToX(version);
+                tx = fx - col_width/2 + 10;
 
             ctx.save();
             ctx.strokeStyle = color.ulink_p;
@@ -288,7 +343,7 @@ function drawShareMap() {
     }
     canvas.height = can_height;
     node_layer.style.height = can_height;
-    canvas.width = share_map.versions.length * col_width + 300;
+    canvas.width = (share_map.versions.length + 1) * col_width + 300;
     node_layer.style.width = canvas.width;
 
     console.log(share_map.actions);
@@ -324,9 +379,13 @@ function drawShareMap() {
 
     //draw columns with dates
     for (var i = 0; i < share_map.versions.length; i++){
-        var ver_date = new Date(share_map.versions[i].date);
-        var d = ver_date.getMonth().toString() + "/" + ver_date.getDate().toString() + "/" + ver_date.getFullYear().toString();
-        console.log(ver_date,d);
+       var ver_date, d;
+            if (share_map.versions[i]) {
+                ver_date = new Date(share_map.versions[i].date);
+                d = ver_date.getMonth().toString() + "/" + ver_date.getDate().toString() + "/" + ver_date.getFullYear().toString();
+            } else {
+                d = 'NOW';
+            }
         i = parseInt(i);
         ctx.save();
         ctx.strokeStyle = color.lane_p;
@@ -367,7 +426,7 @@ function drawShareMap() {
             avatars[_i] = new Image();
             avatars[_i].src = img_src;
             avatars[_i].onload = function() {
-                ctx.drawImage(avatars[_i], 32, ypos);
+                ctx.drawImage(avatars[_i], 32, ypos, 32, 32);
             };
         })(i, y);
 
@@ -411,66 +470,74 @@ function drawShareMap() {
     for (var i = 0; i < share_map.actions.length; i++) {
         var action = share_map.actions[i];
 
-        if (action.state.search(/connected.+/) > -1){
-            var target_num = share_map.actions.length - 1 - parseInt(action.state.replace(/.+_(\d+)/,"$1"));
-            var con_color = color.ulink;
-
-            if (share_map.actions[target_num].state == "pending") {
-                con_color = color.dlink;
-                action.state = "opened";
-            } else {
-                con_color = color.ulink;
-                action.state = "connected";
-            }
-            if(share_map.actions[target_num].version > action.version){
-                drawConn(versionToX(action.version) - (col_width / 2), teamToY(action.to), versionToX(share_map.actions[target_num].version) + (col_width / 2), teamToY(action.to), con_color);
+            if (action.state.search(/connected_to_\d+/) > -1){
+                var target_num = share_map.actions.length - 1 - parseInt(action.state.replace(/.+_(\d+)/,"$1"));
+                var con_color = color.ulink;
                 action.state = 'connected';
-                console.log(action.version + ": " + action.version + " to " + share_map.actions[target_num].version);
+                if(share_map.actions[target_num].version > action.version){
+                    drawConn(versionToX(action.version) - (col_width / 2), teamToY(action.to), versionToX(share_map.actions[target_num].version) + (col_width / 2), teamToY(action.to), con_color);
+                    console.log(action.version + ": " + action.version + " to " + share_map.actions[target_num].version);
+                }
             }
-        }
 
-        if (action.from == current_team.id) {
-            if (action.to < current_team.id) {
-                connectNodes(action.from, action.to, action.version, "up_from_me");
-                nodes.push({action_id: action.id,
-                            version: action.version,
-                            team_to: action.to,
-                            state: action.state});
-                console.log(action.version + ": " + "up_from_me");
+            if (action.state == 'connected_to_now') {
+                con_color = color.dlink;
+                drawConn(versionToX(action.version) - (col_width / 2), teamToY(action.to), versionToX(share_map.versions.length) - (col_width / 2), teamToY(action.to), con_color);
+                action.state = 'connected';
             }
-            else if (action.to > current_team.id) {
-                connectNodes(action.from, action.to, action.version, "down_from_me");
-                nodes.push({action_id: action.id,
-                            version: action.version,
-                            team_to: action.to,
-                            state: action.state});
-                console.log(action.version + ": " + "down_from_me");
-            }
-        }
-        else if (action.to == current_team.id) {
-            if (action.from < current_team.id) {
-                connectNodes(action.from, action.to, action.version, "down_to_me");
-                nodes.push({action_id: action.id,
-                            version: action.version,
-                            team_to: action.to,
-                            state: action.state});
-                console.log(action.version + ": " + "down_to_me");
-            }
-            else if (action.from > current_team.id) {
-                if (action.state == "pending"){
-                    connectNodes(action.from, action.to, action.version, "up_to_me_pending");
-                    console.log(action.version + ": " + "up_to_me_pending");
-                } else {
-                    connectNodes(action.from, action.to, action.version, "up_to_me");
+
+            if (action.from == current_team.id) {
+                if (action.to < current_team.id) {
+                    connectNodes(action.from, action.to, action.version, "up_from_me");
                     nodes.push({action_id: action.id,
                         version: action.version,
                         team_to: action.to,
                         state: action.state});
-                    console.log(action.version + ": " + "up_to_me");
+                    console.log(action.version + ": " + "up_from_me");
+                }
+                else if (action.to > current_team.id) {
+                    connectNodes(action.from, action.to, action.version, "down_from_me");
+                    nodes.push({action_id: action.id,
+                        version: action.version,
+                        team_to: action.to,
+                        state: action.state});
+                    console.log(action.version + ": " + "down_from_me");
+                }
+            }
+            else if (action.to == current_team.id) {
+                if (action.from < current_team.id) {
+                    if (action.state == "parent_pending"){
+                        connectNodes(action.from, action.to, action.version + 1, "down_to_me_pending");
+                        console.log(action.version + ": " + "down_to_me_pending");
+                    } 
+                    else if (action.state == "parent_ignored") {
+                        connectNodes(action.from, action.to, action.version + 1, "down_to_me_ignored");
+                        console.log(action.version + ": " + "down_to_me_ignored");
+                    }
+                    else {
+                        connectNodes(action.from, action.to, action.version, "down_to_me");
+                        nodes.push({action_id: action.id,
+                            version: action.version,
+                            team_to: action.to,
+                            state: action.state});
+                        console.log(action.version + ": " + "down_to_me");
+                    }
+                }
+                else if (action.from > current_team.id) {
+                    if (action.state == "child_pending"){
+                        connectNodes(action.from, action.to, action.version, "up_to_me_pending");
+                        console.log(action.version + ": " + "up_to_me_pending");
+                    } else {
+                        connectNodes(action.from, action.to, action.version, "up_to_me");
+                        nodes.push({action_id: action.id,
+                            version: action.version,
+                            team_to: action.to,
+                            state: action.state});
+                        console.log(action.version + ": " + "up_to_me");
+                    }
                 }
             }
         }
-    }
 
     console.log(nodes);
 
@@ -500,6 +567,7 @@ function drawShareMap() {
             alert("Need some good design here \n" + JSON.stringify(content,null,4));
         };
     }
+    drawNode(versionToX(share_map.versions.length + 1),teamToY(current_team.id),"current");
     //draw childs' nodes
     //create divs on node_layer to make it interactive
     for (var i = 0; i < nodes.length; i++){
